@@ -1,0 +1,9 @@
+{
+  "name": "sovera",
+  "version": "0.0.1",
+  "description": "Start and follow Sovera tasks, answer approval gates and explain failures with a tenant API key, over plain HTTPS.",
+  "author": {
+    "name": "Notch"
+  },
+  "keywords": ["sovera", "agents", "workflows"]
+}
