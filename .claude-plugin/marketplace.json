@@ -10,8 +10,7 @@
     {
       "name": "sovera",
       "source": "./sovera",
-      "description": "Start and follow Sovera tasks, answer approval gates and explain failures with a tenant API key, over plain HTTPS.",
-      "version": "0.0.1"
+      "description": "Start and follow Sovera tasks, answer approval gates and explain failures with a tenant API key, over plain HTTPS."
     }
   ]
 }

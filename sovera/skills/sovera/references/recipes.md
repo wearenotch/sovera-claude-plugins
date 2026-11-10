@@ -74,22 +74,40 @@ Optional body field `callback_url`: a public `https` URL Sovera POSTs the result
 to when the run ends. Errors here are plain text, e.g. `400 prompt cannot be empty`,
 `401 unauthenticated: ...`.
 
-2. Poll `GetRun` every 5 seconds, slowing to every 15 seconds after a minute,
-until `run.status` is `completed` or `failed`:
+2. Poll `GetRun` with this snippet exactly as written. Do not write your own loop:
+the status is nested at `.run.status`, and an unbounded loop hangs the session. It
+checks every 5 seconds for at most 100 seconds, so it fits in one shell call. It
+prints the full run when the run ends or on any error, and a progress line otherwise:
 
 ```bash
-jq -n --arg r "$RUN_ID" '{run_id: $r}' |
-curl -sS -X POST "$SOVERA_URL/run.v1.RunService/GetRun" \
-  -H "Authorization: Bearer $SOVERA_API_KEY" -H "Content-Type: application/json" -d @-
+for i in $(seq 1 20); do
+  RESP=$(jq -n --arg r "$RUN_ID" '{run_id: $r}' |
+    curl -sS -X POST "$SOVERA_URL/run.v1.RunService/GetRun" \
+      -H "Authorization: Bearer $SOVERA_API_KEY" -H "Content-Type: application/json" -d @-)
+  STATUS=$(printf '%s' "$RESP" | jq -r '.run.status // .code // "unreadable"' 2>/dev/null)
+  case "$STATUS" in
+    running)
+      printf '%s' "$RESP" | jq -r '.run.nodes // [] |
+        "running: \(map(select(.state == "done")) | length) of \(length) steps done" +
+        (if any(.kind == "gate" and (.state // "pending") == "pending") then ", gate pending" else "" end)' ;;
+    not_found) echo "not_found: not recorded yet" ;;
+    *) printf '%s\n' "$RESP"; break ;;
+  esac
+  if [ "$i" -eq 20 ]; then echo "still waiting after 100s"; else sleep 5; fi
+done
 ```
 
+- If it ends with `still waiting after 100s`, tell the user the latest progress
+  and run it again. After about ten minutes, stop and ask the user whether to
+  keep waiting.
 - `not_found` right after starting is normal: the run is recorded once planning
-  finishes, which can take 10 seconds or more. Keep polling. If it is still
-  `not_found` after two minutes, check step 3: planning may have failed.
-- While `running`, report progress from `nodes[].state` (e.g. "2 of 3 steps done").
-  A node that is still working reads `pending`; only finished states are recorded.
-- If a node of kind `gate` is `pending` and the steps before it are `done`, the
-  run is probably waiting for a signal: go to **Gates**.
+  finishes, which can take 10 seconds or more. If it is still `not_found` after two
+  minutes, check step 3: planning may have failed, or the key belongs to another
+  tenant.
+- Report progress from the `running` lines (e.g. "2 of 3 steps done"). A node
+  that is still working reads `pending`; only finished states are recorded.
+- If a progress line says `gate pending` and the steps before the gate are `done`,
+  the run is probably waiting for a signal: go to **Gates** instead of polling again.
 - If `failed`, explain `run.failure` and the failed nodes' `failure` (see `errors.md`).
 - `completed` can still contain failed nodes or `synthetic` outputs (a fallback
   replaced a failure). Mention them; the answer may be degraded.
@@ -132,7 +150,8 @@ curl -sS -X POST "$SOVERA_URL/orchestrator.v1.OrchestratorService/GetPendingSign
 
 An empty response (`{}`) means nothing is waiting. `not_found` means the run is
 unknown or not this tenant's; right after an async start it can also mean the run
-is not recorded yet, so retry for a minute before giving up. With durability off,
+is not recorded yet: run the Long task poll snippet until it prints a `running`
+line, then read the gates again. Do not write a retry loop. With durability off,
 gates can be read and answered only while the run is executing. For each signal, show the user
 the `description`, the `context` and the deadline `timeoutAt`, and ask for their
 decision. Build a payload that matches `signalSchema` (a JSON Schema, given as a
@@ -182,6 +201,27 @@ instance does not record runs: the list is empty and `GetRun` fails with
 `failed_precondition`. Use **Short task** instead. A run you already started with
 the async endpoint can still be followed with `GetRunStatus` by `request_id`
 (step 3 of Long task); its nodes cannot be read, and its gates only while it runs.
+Poll it with this snippet as written, never your own loop. Like the Long task
+snippet, it stops after 100 seconds; run it again while it prints `still waiting`:
+
+```bash
+for i in $(seq 1 20); do
+  RESP=$(jq -n --arg r "$REQUEST_ID" '{run_id: $r}' |
+    curl -sS -X POST "$SOVERA_URL/orchestrator.v1.OrchestratorService/GetRunStatus" \
+      -H "Authorization: Bearer $SOVERA_API_KEY" -H "Content-Type: application/json" -d @-)
+  STATUS=$(printf '%s' "$RESP" | jq -r '.status // .code // "unreadable"' 2>/dev/null)
+  case "$STATUS" in
+    active) echo "active" ;;
+    *) printf '%s\n' "$RESP"; break ;;
+  esac
+  if [ "$i" -eq 20 ]; then echo "still waiting after 100s"; else sleep 5; fi
+done
+```
+
+It prints the full response once `status` is `completed` or `failed` (read the
+answer as in step 3 of Long task), or on any error. `"status":"not_found"` means
+the server does not know this `request_id`: check it was the `request_id`, not the
+`run_id`.
 
 ## Blueprints
 

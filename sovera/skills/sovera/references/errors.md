@@ -65,6 +65,7 @@ so when presenting the result.
 | `TIMEOUT` | A step, or the run, exceeded its time limit. | Split the task, or run it again. |
 | `CANCELLED` | The caller cancelled the run (request cancelled, connection closed). | Start it again with the async start. |
 | `INTERRUPTED` | The server shut down while the step ran. | The run may be resumed by the operator; otherwise start it again. |
+| `JOURNAL_UNAVAILABLE` | The server could not read or write the run's saved state, so it paused the run. | Resume the run once the operator confirms the database is back. |
 | `INVALID_INPUT` | A step's input could not be built (an unresolved reference to an earlier step). | Usually a planning or template problem; run it again, or tell the operator if it is a fixed template. |
 | `INVALID_OUTPUT` | An agent's answer was not in the expected format. | Run it again; make the expected format explicit in the prompt. |
 | `BLUEPRINT_NOT_FOUND` | The plan named a blueprint that does not exist. | Use a blueprint ID the tenant has (see recipes, Blueprints). |
@@ -74,6 +75,9 @@ so when presenting the result.
 | `GATE_NOTIFY_FAILED` | A gate's notification could not be delivered. | Answer the gate directly with `SendSignal`. |
 | `AGENT_CRASHED` | The agent crashed or disconnected mid-step. | Run it again. |
 | `AGENT_UNAVAILABLE` | No agent could be started (often the tenant's agent limit). | Wait and run it again; ask the operator if it persists. |
+| `SUBWORKFLOW_FAILED` | A sub-workflow node's child run failed, completed with errors, or produced a fallback result; for a repeated step, a pass failed, or every pass failed up to its limit. | Open the child run (named in the message) to see which of its steps failed. |
+| `TENANT_INACTIVE` | The tenant was deactivated while the run was going, so a sub-workflow could not start. | Ask the operator to reactivate the tenant. |
+| `TENANT_CONFIG_UNAVAILABLE` | The tenant's tool access settings could not be read. | Run it again; operator issue if it persists. |
 | `INTERNAL` | Anything else, and failures recorded before structured errors existed. | Run it again; report the `runId` to the operator if it repeats. |
 
 ## Explaining a failed run

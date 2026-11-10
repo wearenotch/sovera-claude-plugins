@@ -11,8 +11,10 @@ tenant:
   answer another tenant's run ID with `not_found`, exactly like an unknown one.
   `GetRunStatus` does the same for a run started with the async endpoint.
 - It can only use the blueprints the operator enabled for the tenant.
-- The operator sets the tenant's limits (requests per minute, agents, memory). Going
-  over one returns `resource_exhausted`.
+- The operator sets the tenant's limits (requests per minute, agents, memory, open
+  runs). Going over one returns `resource_exhausted`; a new run refused because the
+  tenant has too many open runs can be retried once one of them has ended. A cap on
+  the tenant's executing sub-workflow steps never refuses: such a step waits.
 - Keys are created, rotated and revoked by the operator, not through this API. A key
   that stops working (`unauthenticated`) may have been revoked or expired; a
   `permission_denied` on every call usually means the tenant is suspended.
@@ -91,7 +93,18 @@ After the signal is accepted, later steps can use its payload. The gate node bec
 session are remembered and given to later runs in that session as context, so a
 follow-up like "now shorten it" works. Use a new or omitted `session_id` for an
 unrelated task; Sovera then creates one and returns it. Session memory belongs to
-the tenant; other tenants cannot read it.
+the tenant; other tenants cannot read it. A `session_id` starting with
+`sovera-loop-` in any case is reserved (Sovera uses it for the memory of a
+repeated sub-workflow step), and one holding a `|` is not allowed; both are
+refused with `invalid_argument`.
+
+A library workflow can repeat a sub-workflow step: a fixed number of times, while
+or until a condition holds, until one pass succeeds, or once per item of a list
+(`for_each`, items possibly in parallel). The operator caps how many passes or
+items a step may run. In `GetRun`, such a step shows `passCount`, `capReached`
+(it stopped at its pass limit) and `childRunIds`, one child run per pass or item,
+each readable with `GetRun`. A `for_each` step told to continue past failed items
+ends the run `completed_with_errors` when any item failed.
 
 ## Planning (why the graph looks like this)
 

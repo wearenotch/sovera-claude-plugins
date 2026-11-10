@@ -22,7 +22,8 @@ gives you. Tags are the release image tags, like `master-<sha8>-<epoch>`:
 ```
 
 The plugin cannot check this for you: the server does not report which release it
-runs, and the plugin's own version number is not tied to a server release.
+runs. The plugin has no version number of its own: Claude Code tracks the
+published commit, so `/plugin marketplace update` picks up every release.
 
 ## Configure
 
