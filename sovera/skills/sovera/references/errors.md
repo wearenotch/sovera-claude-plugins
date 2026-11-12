@@ -66,6 +66,7 @@ so when presenting the result.
 | `CANCELLED` | The caller cancelled the run (request cancelled, connection closed). | Start it again with the async start. |
 | `INTERRUPTED` | The server shut down while the step ran. | The run may be resumed by the operator; otherwise start it again. |
 | `JOURNAL_UNAVAILABLE` | The server could not read or write the run's saved state, so it paused the run. | Resume the run once the operator confirms the database is back. |
+| `GATE_STATE_UNAVAILABLE` | The server could not read or restore a waiting approval step's state when resuming, so it paused the run. | Resume the run once the operator confirms the gate store is back. |
 | `INVALID_INPUT` | A step's input could not be built (an unresolved reference to an earlier step). | Usually a planning or template problem; run it again, or tell the operator if it is a fixed template. |
 | `INVALID_OUTPUT` | An agent's answer was not in the expected format. | Run it again; make the expected format explicit in the prompt. |
 | `BLUEPRINT_NOT_FOUND` | The plan named a blueprint that does not exist. | Use a blueprint ID the tenant has (see recipes, Blueprints). |
